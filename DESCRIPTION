@@ -20,8 +20,6 @@ Imports:
     dplyr,
     ShinyItemAnalysis,
     CTT,
-    CDM,
-    TAM,
     deltaPlotR,
     difNLR,
     ggplot2,
@@ -29,4 +27,4 @@ Imports:
     eRm,
     psych,
     reshape2,
-    gtheory
+    gtheory,
