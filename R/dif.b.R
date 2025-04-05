@@ -6,7 +6,7 @@ difClass <- if (requireNamespace('jmvcore'))
     inherit = difBase,
     private = list(
       .htmlwidget = NULL,
-      #=============================================================
+      #---
       
       .init = function() {
         private$.htmlwidget <- HTMLWidget$new()

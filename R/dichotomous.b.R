@@ -1,4 +1,6 @@
 
+
+
 # Dichotomous Rasch model
 #' @import ggplot2
 
@@ -92,9 +94,8 @@ adjustment; Ho= the data fit the Rasch model."
             length(self$options$vars) < 2)
           ready <- FALSE
         if (ready) {
-          
           data <- private$.cleanData()
-         
+          
           if (is.null(private$.cache$tamobj))
             private$.cache$tamobj <- private$.computeTamobj()
           if (is.null(private$.cache$results))
@@ -102,7 +103,7 @@ adjustment; Ho= the data fit the Rasch model."
           
           tamobj <- private$.cache$tamobj
           results <- private$.cache$results
-                    
+          
           # populate scale table-----
           private$.populateScaleTable(results)
           # populate item table----
@@ -121,7 +122,6 @@ adjustment; Ho= the data fit the Rasch model."
       # compute results=====================================================
       
       .compute = function(data) {
-        
         #################################################
         # set.seed(1234)
         #
@@ -326,56 +326,48 @@ adjustment; Ho= the data fit the Rasch model."
             'pinfit' = pinfit,
             'poutfit' = poutfit,
             'resid' = resid
-            
           )
       },
       
       # Standard score----------
-      
       .populateStTable = function(results) {
         table <- self$results$stand$st
         st <- results$st
-        names <- dimnames(st)[[1]]
-        
-        for (name in names) {
-          row <- list()
-          row[['Total']] <- st[name, 1]
-          row[['Percentile']] <- st[name, 2]
-          row[['Z']] <- st[name, 3]
-          row[['T']] <- st[name, 4]
-          table$addRow(rowKey = name, values = row)
+        names <- rownames(st)
+        rows <- lapply(names, function(name) {
+          list(
+            Total = st[name, 1],
+            Percentile = st[name, 2],
+            Z = st[name, 3],
+            T = st[name, 4]
+          )
+        })
+        for (i in seq_along(names)) {
+          table$addRow(rowKey = names[i], values = rows[[i]])
         }
       },
       
       # Summary of total score---------
-      
       .populateToTable = function(results) {
         table <- self$results$stand$to
-        
         to <- results$to
         
-        n <- to$n
-        min <- to$min
-        max <- to$max
-        mean <- to$mean
-        median <- to$median
-        sd <- to$sd
-        se <- to$se
-        skew <- to$skew
-        kurtosis <- to$kurtosis
-        
-        row <- list()
-        row[['N']] <- n
-        row[['Minimum']] <- min
-        row[['Maximum']] <- max
-        row[['Mean']] <- mean
-        row[['Median']] <- median
-        row[['SD']] <- sd
-        row[['SE']] <- se
-        row[['Skewness']] <- skew
-        row[['Kurtosis']] <- kurtosis
-        table$setRow(rowNo = 1, values = row)
+        table$setRow(
+          rowNo = 1,
+          values = list(
+            N = to$n,
+            Minimum = to$min,
+            Maximum = to$max,
+            Mean = to$mean,
+            Median = to$median,
+            SD = to$sd,
+            SE = to$se,
+            Skewness = to$skew,
+            Kurtosis = to$kurtosis
+          )
+        )
       },
+      
       #### Init. tables ====================================================
       
       .initItemsTable = function() {
@@ -385,33 +377,28 @@ adjustment; Ho= the data fit the Rasch model."
       },
       
       # populate scale table-------------------
-      
       .populateScaleTable = function(results) {
         table <- self$results$mf$scale
-        reliability <- results$reliability
-        modelfit <- results$modelfit
-        modelfitp <- results$modelfitp
         
-        row <- list()
-        row[['reliability']] <- reliability[1]
-        row[['modelfit']] <- modelfit
-        row[['modelfitp']] <- modelfitp
-        
-        table$setRow(rowNo = 1, values = row)
+        table$setRow(
+          rowNo = 1,
+          values = list(
+            reliability = results$reliability[1],
+            modelfit = results$modelfit,
+            modelfitp = results$modelfitp
+          )
+        )
       },
+      
       # Populate q3 matrix table-----
       .populateMatrixTable = function(results) {
         # get variables---------------------------------
-        
         matrix <- self$results$mf$get('mat')
         vars <- self$options$get('vars')
         nVars <- length(vars)
-        
         # add columns--------
-        
         for (i in seq_along(vars)) {
           var <- vars[[i]]
-          
           matrix$addColumn(
             name = paste0(var),
             title = var,
@@ -438,36 +425,32 @@ adjustment; Ho= the data fit the Rasch model."
           for (i in 2:nVars) {
             for (j in seq_len(i - 1)) {
               values <- list()
-              
               values[[paste0(vars[[j]])]] <- mat[i, j]
-              
               matrix$setRow(rowNo = i, values)
             }
           }
         }
-        
       },
       
-      # populate item table==============================================
-      
+      # populate item table---
       .populateItemsTable = function(results) {
         table <- self$results$items
         items <- self$options$vars
-        prop <- results$prop
-        imeasure <- results$imeasure
-        ise <- results$ise
-        infit <- results$infit
-        outfit <- results$outfit
+        
+        values <- lapply(seq_along(items), function(i) {
+          list(
+            prop = results$prop[i],
+            measure = results$imeasure[i],
+            ise = results$ise[i],
+            infit = results$infit[i],
+            outfit = results$outfit[i]
+          )
+        })
         for (i in seq_along(items)) {
-          row <- list()
-          row[["prop"]] <- prop[i]
-          row[["measure"]] <- imeasure[i]
-          row[["ise"]] <- ise[i]
-          row[["infit"]] <- infit[i]
-          row[["outfit"]] <- outfit[i]
-          table$setRow(rowKey = items[i], values = row)
+          table$setRow(rowKey = items[i], values = values[[i]])
         }
       },
+      
       # Wrightmapt Plot-----------------------------------------------
       
       .plot = function(image, ...) {
@@ -639,27 +622,21 @@ adjustment; Ho= the data fit the Rasch model."
       
       .cleanData = function() {
         items <- self$options$vars
-        
         data <- list()
-        
         for (item in items)
           data[[item]] <- jmvcore::toNumeric(self$data[[item]])
         
         attr(data, 'row.names') <- seq_len(length(data[[1]]))
         attr(data, 'class') <- 'data.frame'
         data <- jmvcore::naOmit(data)
-        
         return(data)
       },
       
       .computeTamobj = function() {
         data <- private$.cleanData()
-        
         set.seed(1234)
         tamobj = TAM::tam(resp = as.matrix(data))
-        
         return(tamobj)
-        
       }
     )
   )

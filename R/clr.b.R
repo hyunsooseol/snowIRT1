@@ -64,7 +64,7 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
         if (is.null(groupVarName))
           return()
         
-        data <- select(self$data, varNames)
+        data <- dplyr::select(self$data, varNames)
         
         for (var in vars)
           data[[var]] <- jmvcore::toNumeric(data[[var]])
@@ -74,7 +74,7 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
         data <- data[!is.na(data[[groupVarName]]), ]
         
         #############################################################
-        
+        set.seed(1234)
         dif <- iarm::clr_tests(
           dat.items = data[, -1],
           dat.exo = data[[groupVarName]],
@@ -90,14 +90,16 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
         # Creating table-------------
         if (isTRUE(self$options$clr)) {
           table <- self$results$clr
-          for (i in seq_along(1:2)) {
-            row <- list()
-            row[["name"]] <- res[i, 1]
-            row[["clr"]] <- res[i, 2]
-            row[["df"]] <- res[i, 3]
-            row[["p"]] <- res[i, 4]
-            table$addRow(rowKey = i, values = row)
-          }
+          
+          lapply(1:2, function(i) {
+            table$addRow(rowKey = i,
+                         values = list(
+                           name = res[i, 1],
+                           clr = res[i, 2],
+                           df = res[i, 3],
+                           p = res[i, 4]
+                         ))
+          })
         }
         
         # Standardized residuals----------------
@@ -106,6 +108,7 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
         model <- self$options$model
         score <- self$options$score
         if (model == "RM") {
+          set.seed(1234)
           rm.mod <- eRm::RM(X = data[, -1])
           rm <- iarm::item_obsexp(rm.mod)
           if (score == "low") {
@@ -123,17 +126,22 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
           # Creating low score table-------------
           if (isTRUE(self$options$resi)) {
             table <- self$results$resi
-            for (i in seq_along(items)) {
-              row <- list()
-              row[["obs"]] <- low[i, 1]
-              row[["exp"]] <- low[i, 2]
-              row[["std"]] <- low[i, 3]
-              row[["sig"]] <- low[i, 4]
-              table$setRow(rowKey = items[i], values = row)
-            }
+            
+            lapply(seq_along(items), function(i) {
+              table$setRow(
+                rowKey = items[i],
+                values = list(
+                  obs = low[i, 1],
+                  exp = low[i, 2],
+                  std = low[i, 3],
+                  sig = low[i, 4]
+                )
+              )
+            })
           }
         }
         if (model == "PCM") {
+          set.seed(1234)
           pc.mod <- eRm::PCM(X = data[, -1])
           pc <- iarm::item_obsexp(pc.mod)
           if (score == "low") {
@@ -149,42 +157,42 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
           
           pc <- data.frame(obs, exp, std, sig)
           
-          # Creating low score table-------------
+          # Creating high score table-------------
           if (isTRUE(self$options$resi)) {
             table <- self$results$resi
-            for (i in seq_along(items)) {
-              row <- list()
-              row[["obs"]] <- pc[i, 1]
-              row[["exp"]] <- pc[i, 2]
-              row[["std"]] <- pc[i, 3]
-              row[["sig"]] <- pc[i, 4]
-              table$setRow(rowKey = items[i], values = row)
-            }
+            
+            lapply(seq_along(items), function(i) {
+              table$setRow(rowKey = items[i],
+                           values = list(
+                             obs = pc[i, 1],
+                             exp = pc[i, 2],
+                             std = pc[i, 3],
+                             sig = pc[i, 4]
+                           ))
+            })
           }
         }
         
         # Partial Gamma to detect Differential Item Functioning (DIF)------
-        
-        gam <- iarm::partgam_DIF(dat.items = data[, -1], dat.exo = data[[groupVarName]])
-        ################################################################
-        
-        gamma <- gam$gamma
-        se <- gam$se
-        p <- gam$pvalue
-        lower <- gam$lower
-        upper <- gam$upper
-        ##################
         if (isTRUE(self$options$dif)) {
+          set.seed(1234)
+          gam <- iarm::partgam_DIF(dat.items = data[, -1], dat.exo = data[[groupVarName]])
+          
+          gam_df <- as.data.frame(gam[c("gamma", "se", "pvalue", "lower", "upper")])
+          rownames(gam_df) <- colnames(data[, -1])
+          
           items <- self$options$vars
           table <- self$results$dif
-          for (i in seq_along(items)) {
-            row <- list()
-            row[["gamma"]] <- gamma[i]
-            row[["se"]] <- se[i]
-            row[["p"]] <- p[i]
-            row[["lower"]] <- lower[i]
-            row[["upper"]] <- upper[i]
-            table$setRow(rowKey = items[i], values = row)
+          
+          for (item in items) {
+            row <- list(
+              gamma = gam_df[item, "gamma"],
+              se = gam_df[item, "se"],
+              p = gam_df[item, "pvalue"],
+              lower = gam_df[item, "lower"],
+              upper = gam_df[item, "upper"]
+            )
+            table$setRow(rowKey = item, values = row)
           }
         }
         
@@ -238,7 +246,6 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
         
       },
       
-      
       .plot2 = function(image2, ggtheme, theme, ...) {
         if (is.null(image2$state))
           return(FALSE)
@@ -259,7 +266,6 @@ clrClass <- if (requireNamespace('jmvcore', quietly = TRUE))
         )
         print(plot2)
         TRUE
-        
       }
     )
   )
