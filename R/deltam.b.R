@@ -1,4 +1,5 @@
-# Delta method analysis
+
+
 
 deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
   R6::R6Class(
@@ -64,7 +65,7 @@ deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
         varNames <- c(groupVarName, vars)
         if (is.null(groupVarName))
           return()
-        data <- dplyr::select(self$data, varNames)
+        data <- jmvcore::select(self$data, varNames)
         for (var in vars)
           data[[var]] <- jmvcore::toNumeric(data[[var]])
         # exclude rows with missings in the grouping variable
@@ -75,9 +76,10 @@ deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
           jmvcore::reject("Grouping variable '{a}' must have exactly 2 levels",
                           code = "grouping_var_must_have_2_levels",
                           a = groupVarName)
-        #--------Delta method-------------------------------------------
         
-        if (isTRUE(self$options$fixed)) {
+        if (self$options$fixed == TRUE) {
+          #--------Delta method-------------------------------------------
+          
           # delta scores with fixed threshold---------
           fixed <- deltaPlotR::deltaPlot(
             data = data,
@@ -86,28 +88,29 @@ deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
             thr = 1.5,
             purify = FALSE
           )
+          
           #---------------------------------------
-          df <- data.frame(
-            pr = fixed$Props[, 1],
-            pf = fixed$Props[, 2],
-            dr = fixed$Deltas[, 1],
-            df = fixed$Deltas[, 2],
-            dist = fixed$Dist,
-            row.names = colnames(data[, -1])
-          )
+          
+          df <- data.frame(fixed$Props, fixed$Deltas, fixed$Dist)
           
           table <- self$results$fixed
           items <- self$options$vars
           
-          for (item in items) {
-            row <- list(
-              pr = df[item, "pr"],
-              pf = df[item, "pf"],
-              dr = df[item, "dr"],
-              df = df[item, "df"],
-              dist = df[item, "dist"]
-            )
-            table$setRow(rowKey = item, values = row)
+          pr <- df$X1
+          pf <- df$X2
+          deltar <- df$X1.1
+          deltaf <- df$X2.1
+          dist <- df$fixed.Dist
+          
+          for (i in seq_along(items)) {
+            row <- list()
+            row[["pr"]] <- pr[i]
+            row[["pf"]] <- pf[i]
+            row[["dr"]] <- deltar[i]
+            row[["df"]] <- deltaf[i]
+            row[["dist"]] <- dist[i]
+            
+            table$setRow(rowKey = items[i], values = row)
           }
           
           # DIF ITEMS---------
@@ -120,7 +123,7 @@ deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
           image$setState(fixed)
         }
         
-        if (isTRUE(self$options$normal)) {
+        if (self$options$normal == TRUE) {
           # delta scores with normal threshold-----------------
           puri <- self$options$puri
           
@@ -133,7 +136,9 @@ deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
             purify = TRUE,
             purType = puri
           )
+          
           #--------------------------------
+          
           dist <- normal$Dist
           dist <- as.data.frame(dist)
           
@@ -156,6 +161,7 @@ deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
           self$results$text1$setContent(normal.dif)
           
           # threshholds values---------
+          
           thresh <- normal$thr
           self$results$text2$setContent(thresh)
           
@@ -163,8 +169,8 @@ deltamClass <- if (requireNamespace('jmvcore', quietly = TRUE))
           image1 <- self$results$plot1
           image1$setState(normal)
         }
+        
       },
-      
       .plot = function(image, ...) {
         if (is.null(image$state))
           return(FALSE)

@@ -5,9 +5,10 @@ polytomousClass <- if (requireNamespace('jmvcore'))
     "polytomousClass",
     inherit = polytomousBase,
     private = list(
-      .allCache = NULL,
+      .cache = list(),
+      #.allCache = NULL,
       .htmlwidget = NULL,
-      #---
+      #======================================================
       
       .init = function() {
         private$.htmlwidget <- HTMLWidget$new()
@@ -16,6 +17,26 @@ polytomousClass <- if (requireNamespace('jmvcore'))
           self$results$instructions$setVisible(visible = TRUE)
           
         }
+        
+        # self$results$instructions$setContent(
+        #   "<html>
+        #     <head>
+        #     </head>
+        #     <body>
+        #     <div class='instructions'>
+        #     <p>____________________________________________________________________________________</p>
+        #     <p>1. Note that Polytomous model needs <b>the bottom category to be coded as 0.</b>
+        #     <p>2. <b>Person Analysis</b> will be displayed in the datasheet.</p>
+        #     <p>3. The result tables are estimated by Marginal Maximum likelihood Estimation(MMLE).</p>
+        #     <p>4. The <b>eRm</b> R package was used for the person-item map for PCM.</p>
+        #     <p>5. The rationale of snowIRT module is described in the <a href='https://bookdown.org/dkatz/Rasch_Biome/' target = '_blank'>documentation</a>.</p>
+        #     <p>6. Feature requests and bug reports can be made on my <a href='https://github.com/hyunsooseol/snowIRT/issues'  target = '_blank'>GitHub</a>.</p>
+        #     <p>____________________________________________________________________________________</p>
+        #     </div>
+        #     </body>
+        #     </html>"
+        # )
+        
         self$results$instructions$setContent(private$.htmlwidget$generate_accordion(
           title = "Instructions",
           content = paste(
@@ -29,7 +50,9 @@ polytomousClass <- if (requireNamespace('jmvcore'))
             '<li>The rationale of snowIRT module is described in the <a href="https://bookdown.org/dkatz/Rasch_Biome/" target = "_blank">documentation</a>.</li>',
             '<li>Feature requests and bug reports can be made on my <a href="https://github.com/hyunsooseol/snowIRT/issues" target="_blank">GitHub</a>.</li>',
             '</ul></div></div>'
+            
           )
+          
         ))
         
         #  private$.initItemsTable()
@@ -99,8 +122,6 @@ adjustment; Ho= the data fit the Rasch model."
           height <- self$options$height2
           self$results$plot2$setSize(width, height)
         }
-        if (length(self$options$vars) <= 1)
-          self$setStatus('complete')
       },
       
       .run = function() {
@@ -108,18 +129,20 @@ adjustment; Ho= the data fit the Rasch model."
         ready <- TRUE
         
         if (is.null(self$options$vars) ||
-            length(self$options$vars) < 2)
+            length(self$options$vars) < 3)
           
           ready <- FALSE
         
         if (ready) {
           data <- private$.cleanData()
-          #results <- private$.compute(data)
           
-          if (is.null(private$.allCache)) {
-            private$.allCache <- private$.compute(data)
-          }
-          results <- private$.allCache
+          if (is.null(private$.cache$tamobj))
+            private$.cache$tamobj <- private$.computeTamobj()
+          if (is.null(private$.cache$results))
+            private$.cache$results <- private$.compute(data)
+          
+          tamobj <- private$.cache$tamobj
+          results <- private$.cache$results
           
           #populate scale table-----
           private$.populateScaleTable(results)
@@ -152,13 +175,21 @@ adjustment; Ho= the data fit the Rasch model."
           # prepare item fit plot-------
           private$.prepareInfitPlot(data)
           private$.prepareOutfitPlot(data)
+          
+          # prepare rating scale category plot=========
+          #  private$.prepareRatingPlot(data)
           # Summary of total score-----
           private$.populateToTable(results)
+          
           #Standard score---------
           private$.populateStTable(results)
+          
         }
+        
       },
-      # compute results---
+      
+      
+      # compute results=====================================================
       
       .compute = function(data) {
         ##################################################################
@@ -167,9 +198,10 @@ adjustment; Ho= the data fit the Rasch model."
         # estimate the Rasch model with MML using function 'tam.mml'-----
         #tamobj = TAM::tam.mml(resp = as.matrix(data), irtmodel = "RSM")
         ###########################################################
-        tamobj <- private$.computeTamobj()
+        #tamobj <- private$.computeTamobj()
+        tamobj <- private$.cache$tamobj
         
-        if (self$options$tau == TRUE) {
+        if (isTRUE(self$options$tau)) {
           tau <- tamobj$item_irt
           
           # rsmod <- psychotools::rsmodel(as.matrix(data))
@@ -185,15 +217,16 @@ adjustment; Ho= the data fit the Rasch model."
           #
           #
           self$results$text$setContent(tau)
+          
         }
-        # estimate item difficulty measure---------------
         
+        
+        # estimate item difficulty measure---------------
         imeasure <- tamobj$xsi[, 1]
         
         #imeasure <- tamobj$item_irt[[3]]
         # estimate standard error of the item parameter-----
         #ise <- tamobj$se.AXsi[,2]
-        
         ise <- tamobj$xsi[, 2]
         
         # computing infit and outfit statistics---------------------
@@ -229,7 +262,6 @@ adjustment; Ho= the data fit the Rasch model."
         
         # tampartial = TAM::tam.mml(resp = as.matrix(data))
         # Delta parameter-------------------
-        
         pmeasure <- mod_pcm$item_irt$beta
         
         # delta-tau parameterization--------
@@ -278,6 +310,7 @@ adjustment; Ho= the data fit the Rasch model."
         state <- list(df2, score, color)
         image2 <- self$results$plot2
         image2$setState(state)
+        
         # Standard score----------
         
         tosc <- sort(unique(score))          # Levels of total score
@@ -299,38 +332,45 @@ adjustment; Ho= the data fit the Rasch model."
         poutfit <- pfit$outfitPerson
         
         # Residual----------
+        
         res <- TAM::IRT.residuals(tamobj)
         resid <- res$stand_residuals
         
-        # Person Statistics---
+        #### Person Statistics###########################
+        
         # Person tables------------
         
-        if (self$options$total == TRUE) {
+        if (isTRUE(self$options$total)) {
           self$results$total$setRowNums(rownames(data))
           self$results$total$setValues(total)
+          
         }
         
-        if (self$options$personmeasure == TRUE) {
+        if (isTRUE(self$options$personmeasure)) {
           self$results$personmeasure$setRowNums(rownames(data))
           self$results$personmeasure$setValues(personmeasure)
+          
         }
         
-        if (self$options$pse == TRUE) {
+        if (isTRUE(self$options$pse)) {
           self$results$pse$setRowNums(rownames(data))
           self$results$pse$setValues(pse)
+          
         }
         
-        if (self$options$pinfit == TRUE) {
+        if (isTRUE(self$options$pinfit)) {
           self$results$pinfit$setRowNums(rownames(data))
           self$results$pinfit$setValues(pinfit)
+          
         }
         
-        if (self$options$poutfit == TRUE) {
+        if (isTRUE(self$options$poutfit)) {
           self$results$poutfit$setRowNums(rownames(data))
           self$results$poutfit$setValues(poutfit)
+          
         }
         
-        if (self$options$resid == TRUE) {
+        if (isTRUE(self$options$resid)) {
           keys <- 1:length(self$options$vars)
           titles <- paste("Item", 1:length(self$options$vars))
           descriptions <- paste("Item", 1:length(self$options$vars))
@@ -344,7 +384,6 @@ adjustment; Ho= the data fit the Rasch model."
           )
           self$results$resid$setRowNums(rownames(data))
           resid <- as.data.frame(resid)
-          
           for (i in 1:length(self$options$vars)) {
             scores <- as.numeric(resid[, i])
             self$results$resid$setValues(index = i, scores)
@@ -352,7 +391,7 @@ adjustment; Ho= the data fit the Rasch model."
         }
         
         # Wrightmap plot--------------
-        if (self$options$wplot == TRUE) {
+        if (isTRUE(self$options$wplot)) {
           vars <- self$options$vars
           image <- self$results$wplot
           imeasure <- tamobj$item_irt[[3]]
@@ -373,6 +412,16 @@ adjustment; Ho= the data fit the Rasch model."
         )
         image <- self$results$plot3
         image$setState(pf)
+        
+        # ICC Plot -------
+        
+        # image4 <- self$results$plot4
+        # image4$setState(tamobj)
+        
+        # 'Item category for PCM' Plot -------
+        
+        # image6 <- self$results$plot6
+        # image6$setState(tamobj)
         results <-
           list(
             'imeasure' = imeasure,
@@ -413,123 +462,232 @@ adjustment; Ho= the data fit the Rasch model."
       },
       
       # Standard score----------
+      
       .populateStTable = function(results) {
         table <- self$results$ss$st
         st <- results$st
+        
+        col_names <- c("Total", "Percentile", "Z", "T")
         row_names <- rownames(st)
-        row_list <- lapply(row_names, function(name) {
-          list(
-            Total = st[name, 1],
-            Percentile = st[name, 2],
-            Z = st[name, 3],
-            T = st[name, 4]
-          )
-        })
-        for (i in seq_along(row_names)) {
-          table$addRow(rowKey = row_names[i], values = row_list[[i]])
+        for (name in row_names) {
+          row <- as.list(setNames(st[name, 1:4], col_names))
+          table$addRow(rowKey = name, values = row)
         }
       },
       # Summary of total score---------
       .populateToTable = function(results) {
-        self$results$ss$to$setRow(
-          rowNo = 1,
-          values = list(
-            N = results$to$n,
-            Minimum = results$to$min,
-            Maximum = results$to$max,
-            Mean = results$to$mean,
-            Median = results$to$median,
-            SD = results$to$sd,
-            SE = results$to$se,
-            Skewness = results$to$skew,
-            Kurtosis = results$to$kurtosis
-          )
+        table <- self$results$ss$to
+        to <- results$to
+        stat_names <- c(
+          N = "n",
+          Minimum = "min",
+          Maximum = "max",
+          Mean = "mean",
+          Median = "median",
+          SD = "sd",
+          SE = "se",
+          Skewness = "skew",
+          Kurtosis = "kurtosis"
         )
+        row <- setNames(lapply(stat_names, function(x)
+          to[[x]]), names(stat_names))
+        table$setRow(rowNo = 1, values = row)
+        # n<- to$n
+        # min<- to$min
+        # max<- to$max
+        # mean<- to$mean
+        # median<- to$median
+        # sd<- to$sd
+        # se <- to$se
+        # skew<- to$skew
+        # kurtosis<- to$kurtosis
+        #
+        #
+        # row <- list()
+        #
+        # row[['N']] <- n
+        # row[['Minimum']] <- min
+        # row[['Maximum']] <- max
+        # row[['Mean']] <- mean
+        # row[['Median']] <- median
+        # row[['SD']] <- sd
+        # row[['SE']] <- se
+        # row[['Skewness']] <- skew
+        # row[['Kurtosis']] <- kurtosis
+        #
+        #
+        # table$setRow(rowNo = 1, values = row)
       },
-      # Init. tables ---
+      
+      
+      # Init. tables ------------------------------------
       
       .initItemsTable = function() {
         table <- self$results$ia$items
+        
         for (i in seq_along(items))
           table$addFootnote(rowKey = items[i], 'name')
+        
       },
-      #Model table---
       
       .populateModelTable = function(results) {
         table <- self$results$mcc$model
-        rows <- lapply(1:2, function(i) {
-          list(
-            name = results$name[i],
-            log = results$log[i],
-            dev = results$dev[i],
-            aic = results$aic[i],
-            bic = results$bic[i],
-            caic = results$caic[i],
-            npars = results$npars[i],
-            obs = results$obs[i]
-          )
-        })
-        for (i in 1:2) {
-          table$addRow(rowKey = i, values = rows[[i]])
+        stat_names <- c("name", "log", "dev", "aic", "bic", "caic", "npars", "obs")
+        for (i in seq_along(results$name)) {
+          row <- setNames(lapply(stat_names, function(x)
+            results[[x]][i]), stat_names)
+          table$addRow(rowKey = i, values = row)
         }
+        # name <- results$name
+        # log <- results$log
+        # dev <- results$dev
+        # aic <- results$aic
+        # bic <- results$bic
+        # caic <- results$caic
+        # npars <- results$npars
+        # obs <- results$obs
+        #
+        #
+        # for(i in seq_along(1:2)){
+        #
+        #   row <- list()
+        #
+        #   row[['name']] <- name[i]
+        #   row[['log']] <- log[i]
+        #   row[['dev']] <- dev[i]
+        #   row[['aic']] <- aic[i]
+        #   row[['bic']] <- bic[i]
+        #   row[['caic']] <- caic[i]
+        #   row[['npars']] <- npars[i]
+        #   row[['obs']] <- obs[i]
+        #
+        #   table$addRow(rowKey = i, values = row)
+        
       },
       
       .populateLrTable = function(results) {
-        self$results$mcc$lr$setRow(
-          rowNo = 1,
-          values = list(
-            model1 = results$model1,
-            model2 = results$model2,
-            chi = results$chi,
-            df = results$df,
-            p = results$p
-          )
-        )
+        table <- self$results$mcc$lr
+        stat_names <- c("model1", "model2", "chi", "df", "p")
+        row <- setNames(lapply(stat_names, function(x)
+          results[[x]]), stat_names)
+        table$setRow(rowNo = 1, values = row)
+        # table <- self$results$mcc$lr
+        #
+        # model1 <- results$model1
+        # model2 <- results$model2
+        # chi <- results$chi
+        # df <- results$df
+        # p <- results$p
+        #
+        #
+        # row <- list()
+        #
+        # row[['model1']] <- model1
+        # row[['model2']] <- model2
+        # row[['chi']] <- chi
+        # row[['df']] <- df
+        # row[['p']] <- p
+        #
+        # table$setRow(rowNo = 1, values = row)
       },
+      
+      
       # populate scale table-------------------
+      
       .populateScaleTable = function(results) {
-        self$results$mf$scale$setRow(
-          rowNo = 1,
-          values = list(
-            reliability = results$reliability[1],
-            modelfit = results$modelfit,
-            modelfitp = results$modelfitp
-          )
-        )
+        table <- self$results$mf$scale
+        stat_names <- c("reliability", "modelfit", "modelfitp")
+        row <- setNames(lapply(stat_names, function(x)
+          if (x == "reliability")
+            results[[x]][1]
+          else
+            results[[x]]),
+          stat_names)
+        table$setRow(rowNo = 1, values = row)
+        # table <- self$results$mf$scale
+        #
+        # reliability <- results$reliability
+        #
+        # modelfit <- results$modelfit
+        # modelfitp <- results$modelfitp
+        #
+        # row <- list()
+        #
+        # row[['reliability']] <- reliability[1]
+        # row[['modelfit']] <- modelfit
+        # row[['modelfitp']] <- modelfitp
+        #
+        # table$setRow(rowNo = 1, values = row)
       },
+      
+      
       # populate item tables----------------------
+      
       .populateItemsTable = function(results) {
         table <- self$results$ia$items
         items <- self$options$vars
+        stat_names <- c(
+          "measure" = "imeasure",
+          "ise" = "ise",
+          "infit" = "infit",
+          "outfit" = "outfit"
+        )
         
         for (i in seq_along(items)) {
-          table$setRow(
-            rowKey = items[i],
-            values = list(
-              measure = results$imeasure[i],
-              ise = results$ise[i],
-              infit = results$infit[i],
-              outfit = results$outfit[i]
-            )
-          )
+          row <- setNames(lapply(stat_names, function(x)
+            results[[x]][i]),
+            names(stat_names))
+          table$setRow(rowKey = items[i], values = row)
         }
+        
+        # table <- self$results$ia$items
+        #
+        # items <- self$options$vars
+        #
+        #
+        # imeasure <- results$imeasure
+        # ise <- results$ise
+        #
+        # infit <- results$infit
+        # outfit <- results$outfit
+        #
+        #
+        # for (i in seq_along(items)) {
+        #   row <- list()
+        #
+        #
+        #   row[["measure"]] <- imeasure[i]
+        #
+        #   row[["ise"]] <- ise[i]
+        #
+        #   row[["infit"]] <- infit[i]
+        #
+        #   row[["outfit"]] <- outfit[i]
+        #
+        #
+        #   table$setRow(rowKey = items[i], values = row)
+        # }
       },
+      
+      
       # Populate q3 matrix table-----
       
       .populateMatrixTable = function(results) {
+        # get variables---------------------------------
+        
         matrix <- self$results$mf$get('mat')
         vars <- self$options$get('vars')
         nVars <- length(vars)
         # add columns--------
         for (i in seq_along(vars)) {
           var <- vars[[i]]
+          
           matrix$addColumn(
             name = paste0(var),
             title = var,
             type = 'number',
             format = 'zto'
           )
-          # empty cells above and put "-" in the main diagonal
           for (i in seq_along(vars)) {
             var <- vars[[i]]
             values <- list()
@@ -539,74 +697,79 @@ adjustment; Ho= the data fit the Rasch model."
             }
             values[[paste0(var)]]  <- '\u2014'
             matrix$setRow(rowKey = var, values)
+            
           }
           data <- self$data
+          #data<- private$.cleanData
           for (v in vars)
             data[[v]] <- jmvcore::toNumeric(data[[v]])
           #compute again------
           mat <- results$mat
-          
           # populate result----------------------------------------
-          
           for (i in 2:nVars) {
             for (j in seq_len(i - 1)) {
               values <- list()
               values[[paste0(vars[[j]])]] <- mat[i, j]
+              
               matrix$setRow(rowNo = i, values)
             }
           }
         }
+        
       },
-      
       #  populate Delta-tau parameterization------------
+      
       .populateThresholdsTable = function(results) {
         table <- self$results$ia$thresh
-        nCategory <- results$nc1
+        tau <- results$tau
+        pmeasure <- results$pmeasure #partial credit
+        nCategory <- results$nc1 # number of tau
         vars <- self$options$vars
-        
         if (nCategory > 1) {
-          col_names <- paste0("name", seq_len(nCategory))
-          lapply(seq_len(nCategory), function(j) {
+          for (i in 1:nCategory)
+            
             table$addColumn(
-              name = col_names[j],
-              title = as.character(j),
+              name = paste0("name", i),
+              title = as.character(i),
               superTitle = 'tau parameters',
               type = 'number'
             )
-          })
         }
-        
-        lapply(seq_along(vars), function(i) {
-          row_data <- c(as.list(setNames(results$tau[i, ], col_names)), 
-                        list(pmeasure = results$pmeasure[i]))
-                        table$setRow(rowNo = i, values = row_data)
-        })
+        for (i in seq_along(vars)) {
+          row <- list()
+          for (j in 1:nCategory) {
+            row[[paste0("name", j)]] <- tau[i, j]
+          }
+          row[["pmeasure"]] <- pmeasure[i]
+          table$setRow(rowNo = i, values = row)
+        }
       },
       
       # populate thurstone thresholds---------
       .populateThurstoneTable = function(results) {
         table <- self$results$ia$thurs
-        nCategory <- results$nc
+        thr <- results$thresh # matrix
+        nCategory <- results$nc # number of thresholds
         vars <- self$options$vars
-        
         if (nCategory > 1) {
-          col_names <- paste0("name", seq_len(nCategory))
-          lapply(seq_len(nCategory), function(j) {
+          for (i in 1:nCategory)
+            
             table$addColumn(
-              name = col_names[j],
-              title = as.character(j),
+              name = paste0("name", i),
+              title = as.character(i),
               superTitle = 'Thurstone Thresholds',
               type = 'number'
             )
-          })
         }
-        
-        lapply(seq_along(vars), function(i) {
-          row_data <- as.list(setNames(results$thresh[i, ], col_names))
-          table$setRow(rowNo = i, values = row_data)
-        })
+        for (i in seq_along(vars)) {
+          row <- list()
+          for (j in 1:nCategory) {
+            row[[paste0("name", j)]] <- thr[i, j]
+          }
+          table$setRow(rowNo = i, values = row)
+        }
       },
-      
+      #####################################################
       .populatePerOutputs = function(results) {
         perc <- results$perc
         if (self$options$per
@@ -616,7 +779,7 @@ adjustment; Ho= the data fit the Rasch model."
         }
       },
       
-      # Plot functions---
+      #### Plot functions ###########################
       
       # wright map plot--------------
       
@@ -636,7 +799,6 @@ adjustment; Ho= the data fit the Rasch model."
       },
       
       # PREPARE PERSON-ITEM PLOT FOR PCM-------------
-      
       .preparepiPlot = function(data) {
         set.seed(1234)
         #########################
@@ -655,12 +817,29 @@ adjustment; Ho= the data fit the Rasch model."
         TRUE
       },
       
+      # ICC plot-----------------
+      
+      # .prepareIccPlot = function(data) {
+      #
+      #   # item characteristic curves based on partial credit model--------
+      #   set.seed(1234)
+      #   tam <- TAM::tam.mml(resp = as.matrix(data))
+      #
+      # # ICC Plot -------
+      #
+      #   image <- self$results$plot4
+      #   image$setState(tam)
+      #
+      # },
+      
       .plot4 = function(image, ...) {
         # ICC plot-------------------
+        
         num <- self$options$num
         if (!self$options$plot4)
           return(FALSE)
-        tamobj <- private$.computeTamobj()
+        tamobj <- private$.cache$tamobj
+        #tamobj <- private$.computeTamobj()
         plot4 <- plot(tamobj,
                       items = num,
                       #type="items" produce item response curve not expected curve
@@ -669,13 +848,28 @@ adjustment; Ho= the data fit the Rasch model."
         print(plot4)
         TRUE
       },
+      # Prepare Expected score curve functions------------
+      
+      # .prepareEscPlot = function(data) {
+      #
+      #   set.seed(1234)
+      #   tamp = TAM::tam(resp =as.matrix(data))
+      #
+      #   # Prepare Data For ESC Plot -------
+      #
+      #   image <- self$results$plot6
+      #   image$setState(tamp)
+      #
+      # },
+      #
       
       .plot6 = function(image, ...) {
         # 'Item category for PCM'
         num1 <- self$options$num1
         if (!self$options$plot6)
           return(FALSE)
-        tamobj <- private$.computeTamobj()
+        tamobj <- private$.cache$tamobj
+        #tamobj <- private$.computeTamobj()
         plot6 <- plot(tamobj,
                       items = num1,
                       type = 'items',
@@ -684,10 +878,13 @@ adjustment; Ho= the data fit the Rasch model."
         TRUE
       },
       # infit plot---------------
+      
       .prepareInfitPlot = function(data) {
         # estimate the Rasch model with MML using function 'tam.mml'-----
-        set.seed(1234)
-        tamobj = TAM::tam.mml(resp = as.matrix(data), irtmodel = "RSM")
+        # set.seed(1234)
+        # tamobj = TAM::tam.mml(resp = as.matrix(data), irtmodel = "RSM")
+        tamobj <- private$.cache$tamobj
+        
         item <- tamobj$item$item
         nitems <- length(item)
         fit <- TAM::tam.fit(tamobj)
@@ -729,6 +926,7 @@ adjustment; Ho= the data fit the Rasch model."
           ggtitle("Item Infit")
         
         plot <- plot + ggtheme
+        
         if (self$options$angle > 0) {
           plot <- plot + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = self$options$angle, hjust = 1))
         }
@@ -738,8 +936,9 @@ adjustment; Ho= the data fit the Rasch model."
       
       .prepareOutfitPlot = function(data) {
         # estimate the Rasch model with MML using function 'tam.mml'-----
-        set.seed(1234)
-        tamobj = TAM::tam.mml(resp = as.matrix(data), irtmodel = "RSM")
+        # set.seed(1234)
+        # tamobj = TAM::tam.mml(resp = as.matrix(data), irtmodel = "RSM")
+        tamobj <- private$.cache$tamobj
         item <- tamobj$item$item
         nitems <- length(item)
         fit <- TAM::tam.fit(tamobj)
@@ -793,9 +992,11 @@ adjustment; Ho= the data fit the Rasch model."
       .plot2 = function(image2, ggtheme, theme, ...) {
         if (is.null(image2$state))
           return(FALSE)
+        
         df2 <- image2$state[[1]]
         score <- image2$state[[2]]
         color <- image2$state[[3]]
+        
         plot2 <- ggplot(df2, aes(score)) +
           geom_histogram(binwidth = 1,
                          fill = color,
@@ -803,6 +1004,7 @@ adjustment; Ho= the data fit the Rasch model."
           xlab("Total score") +
           ylab("Number of respondents") +
           ShinyItemAnalysis::theme_app()
+        
         plot2 <- plot2 + ggtheme
         print(plot2)
         TRUE
@@ -811,9 +1013,12 @@ adjustment; Ho= the data fit the Rasch model."
       .plot3 = function(image, ggtheme, theme, ...) {
         if (is.null(image$state))
           return(FALSE)
+        
         pf <- image$state
+        
         plot3 <- ggplot2::ggplot(pf, aes(x = Measure, y = Value, shape = Fit)) +
           geom_point(size = 3, stroke = 2) +
+          
           ggplot2::scale_shape_manual(values = c(3, 4)) +
           #ggplot2::scale_color_manual(values=c("red", "blue")+
           ggplot2::coord_cartesian(xlim = c(-4, 4), ylim = c(0, 3)) +
@@ -838,14 +1043,18 @@ adjustment; Ho= the data fit the Rasch model."
       
       .cleanData = function() {
         items <- self$options$vars
+        
         data <- list()
+        
         for (item in items)
           data[[item]] <-
           jmvcore::toNumeric(self$data[[item]])
+        
         attr(data, 'row.names') <-
           seq_len(length(data[[1]]))
         attr(data, 'class') <- 'data.frame'
         data <- jmvcore::naOmit(data)
+        
         return(data)
       },
       
@@ -856,5 +1065,5 @@ adjustment; Ho= the data fit the Rasch model."
         tamobj = TAM::tam.mml(resp = as.matrix(data), irtmodel = "RSM")
         return(tamobj)
       }
-        )
     )
+  )
