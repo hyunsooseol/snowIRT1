@@ -9,7 +9,7 @@ Description: This module includes dichotomous, polytomous, and many facet model 
 License: GPL3
 LazyData: TRUE
 Encoding: UTF-8
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Imports:
     jmvcore (>= 0.8),
     RcppArmadillo,
@@ -20,3 +20,4 @@ Imports:
     difNLR,
     iarm,
     eRm
+Remotes: cran/gtheory
