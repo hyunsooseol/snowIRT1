@@ -19,5 +19,5 @@ Imports:
     deltaPlotR,
     difNLR,
     iarm,
-    eRm
-Remotes: cran/gtheory
+    eRm,
+    TAM
