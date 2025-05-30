@@ -19,5 +19,4 @@ Imports:
     deltaPlotR,
     difNLR,
     iarm,
-    eRm,
-    TAM
+    eRm
